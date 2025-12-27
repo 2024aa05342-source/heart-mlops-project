@@ -1,1 +1,9 @@
-python -m venv venv
+pandas
+numpy
+scikit-learn
+seaborn
+matplotlib
+mlflow
+fastapi
+uvicorn
+pytest
