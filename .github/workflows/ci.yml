@@ -4,18 +4,40 @@ name: Heart-MLops-CI-Pipeline
 on: [push, pull_request]
 
 jobs:
-  build-test:
+  build-test-train:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
 
-    - name: Set up Python
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
     - name: Install dependencies
-      run: pip install -r requirements.txt
+      run: |
+        pip install -r requirements.txt
+        pip install flake8
 
+    # ---------------- Linting Step ----------------
+    - name: Run Linting (flake8)
+      run: |
+        flake8 src/ || true
+      # `|| true` prevents pipeline from failing due to minor style issues
+
+    # ---------------- Unit Testing ----------------
     - name: Run Tests
       run: pytest -q
+
+    # ---------------- Model Training Step ----------------
+    - name: Train Model and Save Artifacts
+      run: python src/train.py
+
+    # ---------------- Save Model Artifact ----------------
+    - name: Upload Model Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: trained_model
+        path: models/*.pkl
