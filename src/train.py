@@ -18,15 +18,21 @@ client = MlflowClient()
 os.makedirs("mlruns", exist_ok=True)
 os.makedirs("models", exist_ok=True)
 
-# Create experiment only if it doesn't exist
-existing_exps = [exp.name for exp in client.search_experiments()]
-if "heart-disease-exp" not in existing_exps:
-    client.create_experiment(
-        name="heart-disease-exp",
-        artifact_location="file:./mlruns"
-    )
+# Always write experiments inside repository for CI
+experiment_name = "heart-disease-exp"
 
-mlflow.set_experiment("heart-disease-exp")
+# Try to get experiment, else create new one
+try:
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        exp_id = client.create_experiment(name=experiment_name, artifact_location="file:./mlruns")
+    else:
+        exp_id = experiment.experiment_id
+except:
+    exp_id = client.create_experiment(name=experiment_name, artifact_location="file:./mlruns")
+
+mlflow.set_experiment(experiment_name)
+
 # ---------------------------------------------------------------
 
 
@@ -56,7 +62,7 @@ def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
         with open(file_path, "wb") as f:
             pickle.dump(model, f)
 
-        mlflow.log_artifact(file_path)
+        mlflow.log_artifact(file_path, artifact_path="models")  # prevents path escalation
 
 
 if __name__ == "__main__":
