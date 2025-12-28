@@ -64,7 +64,6 @@ def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
         with open(file_path, "wb") as f:
             pickle.dump(model, f)
 
-        mlflow.log_artifact(file_path, artifact_path="models")  # prevents path escalation
         # prevent writing to /Users path inside CI
         if not IN_CI:
             mlflow.log_artifact(file_path, artifact_path="models")
