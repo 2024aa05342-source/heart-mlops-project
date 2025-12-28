@@ -37,6 +37,8 @@ mlflow.set_experiment(experiment_name)
 
 
 def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
+    import os
+    IN_CI = os.getenv("GITHUB_ACTIONS") == "true"
 
     with mlflow.start_run(run_name=model_name):   # Run logs safely handled
 
@@ -63,7 +65,9 @@ def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
             pickle.dump(model, f)
 
         mlflow.log_artifact(file_path, artifact_path="models")  # prevents path escalation
-
+        # prevent writing to /Users path inside CI
+        if not IN_CI:
+            mlflow.log_artifact(file_path, artifact_path="models")
 
 if __name__ == "__main__":
     df = load_data()
