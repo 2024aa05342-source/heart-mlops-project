@@ -1,6 +1,9 @@
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import mlflow
+from mlflow.tracking import MlflowClient
 import pickle
-import os
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
@@ -8,16 +11,28 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_a
 from src.preprocess import preprocess
 from src.data_loader import load_data
 
-# ------------ FIX FOR CI ------------
-mlflow.set_tracking_uri("file:./mlruns")  # ensures it works in GitHub Actions
+# ----------------- FIX FOR CI & ARTIFACT ISSUE -----------------
+mlflow.set_tracking_uri("file:./mlruns")     # Store experiment inside repo folder
+client = MlflowClient()
+
+os.makedirs("mlruns", exist_ok=True)
+os.makedirs("models", exist_ok=True)
+
+# Create experiment only if it doesn't exist
+existing_exps = [exp.name for exp in client.search_experiments()]
+if "heart-disease-exp" not in existing_exps:
+    client.create_experiment(
+        name="heart-disease-exp",
+        artifact_location="file:./mlruns"
+    )
+
 mlflow.set_experiment("heart-disease-exp")
-os.makedirs("models", exist_ok=True)      # ensures folder exists
-# -------------------------------------
+# ---------------------------------------------------------------
 
 
 def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
 
-    with mlflow.start_run(run_name=model_name):   # safer context manager
+    with mlflow.start_run(run_name=model_name):   # Run logs safely handled
 
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
@@ -37,12 +52,10 @@ def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
         mlflow.log_params(model.get_params())
         mlflow.log_metrics({"accuracy": acc, "precision": pre, "recall": rec, "auc": auc})
 
-        # ---- Save model locally ----
         file_path = f"models/{model_name}.pkl"
         with open(file_path, "wb") as f:
             pickle.dump(model, f)
 
-        # ---- Upload artifact (CI compatible) ----
         mlflow.log_artifact(file_path)
 
 
