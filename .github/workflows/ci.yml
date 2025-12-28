@@ -1,4 +1,3 @@
-
 name: Heart-MLops-CI-Pipeline
 
 on: [push, pull_request]
@@ -21,21 +20,19 @@ jobs:
         pip install -r requirements.txt
         pip install flake8
 
-    # ---------------- Linting Step ----------------
+    - name: Set PYTHONPATH
+      run: echo "PYTHONPATH=$PYTHONPATH:$(pwd)" >> $GITHUB_ENV
+
     - name: Run Linting (flake8)
       run: |
         flake8 src/ || true
-      # `|| true` prevents pipeline from failing due to minor style issues
 
-    # ---------------- Unit Testing ----------------
     - name: Run Tests
       run: pytest -q
 
-    # ---------------- Model Training Step ----------------
     - name: Train Model and Save Artifacts
       run: python src/train.py
 
-    # ---------------- Save Model Artifact ----------------
     - name: Upload Model Artifact
       uses: actions/upload-artifact@v4
       with:
