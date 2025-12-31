@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: heart_app
+    ports:
+      - "8000:8000"   # FastAPI
+      - "8501:8501"   # Streamlit
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: heart_prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: heart_grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+

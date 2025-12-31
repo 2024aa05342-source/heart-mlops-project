@@ -11,3 +11,5 @@ python-multipart
 streamlit
 plotly
 requests
+prometheus-client
+prometheus-fastapi-instrumentator
