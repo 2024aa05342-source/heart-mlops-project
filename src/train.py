@@ -49,7 +49,12 @@ def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
         acc = accuracy_score(y_test, y_pred)
         pre = precision_score(y_test, y_pred, average='macro', zero_division=0)
         rec = recall_score(y_test, y_pred, average='macro', zero_division=0)
-        auc = roc_auc_score(y_test, y_proba, multi_class='ovr')
+        # For binary classification AUC
+        if y_proba.shape[1] == 2:
+            auc = roc_auc_score(y_test, y_proba[:,1])
+        else:
+            auc = roc_auc_score(y_test, y_proba, multi_class='ovr')  # fallback if >2 classes
+
 
         print(f"\nModel: {model_name}")
         print(f"Accuracy: {acc}")
@@ -68,11 +73,28 @@ def train_and_log(model, X_train, X_test, y_train, y_test, model_name):
         if not IN_CI:
             mlflow.log_artifact(file_path, artifact_path="models")
 
+import json
+
 if __name__ == "__main__":
     df = load_data()
-    (X_train, X_test, y_train, y_test), scaler = preprocess(df)
+    (X_train, X_test, y_train, y_test), scaler, feature_columns = preprocess(df)
 
+    # Save scaler
+    with open("models/scaler.pkl", "wb") as f:
+        pickle.dump(scaler, f)
+
+    # Save feature order
+    with open("models/columns.json", "w") as f:
+        json.dump(feature_columns, f)
+
+    # Train models
     train_and_log(LogisticRegression(max_iter=500), X_train, X_test, y_train, y_test, "logistic_regression")
     train_and_log(RandomForestClassifier(), X_train, X_test, y_train, y_test, "random_forest")
 
-    print("\nTraining Complete. Models saved in /models and mlflow logs stored in mlruns/")
+    print("\nTraining Complete — models & artifacts saved.")
+    print("Files saved in models/:")
+    print(" → logistic_regression.pkl")
+    print(" → random_forest.pkl")
+    print(" → scaler.pkl")
+    print(" → columns.json")
+

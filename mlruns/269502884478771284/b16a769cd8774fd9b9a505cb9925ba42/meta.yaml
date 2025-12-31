@@ -1,0 +1,14 @@
+artifact_uri: /Users/aadya/Documents/MyLocalDrive/BITS/GitHub.nosync/heart-mlops-project/mlruns/269502884478771284/b16a769cd8774fd9b9a505cb9925ba42/artifacts
+end_time: 1766931651396
+entry_point_name: ''
+experiment_id: '269502884478771284'
+lifecycle_stage: active
+run_id: b16a769cd8774fd9b9a505cb9925ba42
+run_name: logistic_regression
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1766931651311
+status: 3
+tags: []
+user_id: aadya

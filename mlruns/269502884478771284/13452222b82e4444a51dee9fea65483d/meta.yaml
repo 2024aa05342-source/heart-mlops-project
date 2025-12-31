@@ -1,0 +1,14 @@
+artifact_uri: /Users/aadya/Documents/MyLocalDrive/BITS/GitHub.nosync/heart-mlops-project/mlruns/269502884478771284/13452222b82e4444a51dee9fea65483d/artifacts
+end_time: 1766933719682
+entry_point_name: ''
+experiment_id: '269502884478771284'
+lifecycle_stage: active
+run_id: 13452222b82e4444a51dee9fea65483d
+run_name: random_forest
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1766933719549
+status: 3
+tags: []
+user_id: aadya

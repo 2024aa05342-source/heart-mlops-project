@@ -1,9 +1,13 @@
 pandas
 numpy
-scikit-learn
+scikit-learn==1.7.2
 seaborn
 matplotlib
 mlflow
 fastapi
 uvicorn
 pytest
+python-multipart
+streamlit
+plotly
+requests
