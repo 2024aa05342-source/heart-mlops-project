@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heart-streamlit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: heart-streamlit
+  template:
+    metadata:
+      labels:
+        app: heart-streamlit
+    spec:
+      containers:
+        - name: streamlit
+          image: YOUR_DOCKER_IMAGE:latest
+          imagePullPolicy: Always
+          command: ["streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+          ports:
+            - containerPort: 8501
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: heart-streamlit-svc
+spec:
+  selector:
+    app: heart-streamlit
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8501
+  type: ClusterIP

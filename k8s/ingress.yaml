@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: heart-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - http:
+        paths:
+          # API exposed at /api
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: heart-api-svc
+                port:
+                  number: 80
+
+          # Streamlit at /
+          - path: /()(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: heart-streamlit-svc
+                port:
+                  number: 80

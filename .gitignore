@@ -1,1 +1,11 @@
 venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Data
+data/*.csv
+
+# MLflow local runs (if you don't want to commit them)
+mlruns/

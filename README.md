@@ -45,6 +45,9 @@ venv\Scripts\activate      # Windows
 ## Install dependencies
 pip install -r requirements.txt
 
+## Download dataset
+python scripts/download_data.py --out data/heart.csv
+
 ## Train model
 python src/train.py
 

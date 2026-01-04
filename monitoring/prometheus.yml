@@ -5,4 +5,4 @@ scrape_configs:
   - job_name: "heart_api"
     metrics_path: /metrics
     static_configs:
-      - targets: ["app:8000"]
+      - targets: ["api:8000"]

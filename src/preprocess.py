@@ -1,46 +1,95 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List, Tuple
+
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-def preprocess(df):
-    # Remove non-useful columns
-    df = df.drop(columns=['id', 'dataset'], errors='ignore')
 
-    # Convert target to binary
-    y = (df['num'] > 0).astype(int)
+TARGET_COL = "num"
 
-    # Split features
-    X = df.drop('num', axis=1)
+# UCI Heart Disease commonly uses these columns (your data_loader reads heart.csv)
+# If your CSV has extra columns, they are dropped in `prepare_xy`.
+NUMERIC_FEATURES: List[str] = [
+    "age", "trestbps", "chol", "thalach", "oldpeak"
+]
 
-    # One-hot encode
-    X = pd.get_dummies(X, drop_first=True)
+CATEGORICAL_FEATURES: List[str] = [
+    "sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"
+]
 
-    # Save column names (order needed for inference)
-    cols = list(X.columns)
 
-    # Handle missing values
-    imputer = SimpleImputer(strategy="median")
-    X_imputed = imputer.fit_transform(X)
+@dataclass(frozen=True)
+class FeatureSpec:
+    numeric: List[str]
+    categorical: List[str]
 
-    # Scale
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_imputed)
+    @property
+    def all_features(self) -> List[str]:
+        return self.numeric + self.categorical
 
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_scaled, y, test_size=0.2, random_state=42
+
+DEFAULT_SPEC = FeatureSpec(numeric=NUMERIC_FEATURES, categorical=CATEGORICAL_FEATURES)
+
+
+def prepare_xy(df: pd.DataFrame, spec: FeatureSpec = DEFAULT_SPEC) -> Tuple[pd.DataFrame, pd.Series]:
+    """
+    Prepare X (raw feature dataframe) and y (binary target).
+    - Drops non-useful columns if present.
+    - Converts target `num` into binary: 1 if num > 0 else 0.
+    """
+    df = df.copy()
+    df = df.drop(columns=["id", "dataset"], errors="ignore")
+
+    if TARGET_COL not in df.columns:
+        raise ValueError(f"Expected target column '{TARGET_COL}' in dataframe. Found: {list(df.columns)}")
+
+    # Ensure all expected feature columns exist
+    missing = [c for c in spec.all_features if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing expected feature columns: {missing}. Found: {list(df.columns)}")
+
+    y = (df[TARGET_COL] > 0).astype(int)
+    X = df[spec.all_features].copy()
+    return X, y
+
+
+def build_preprocessor(spec: FeatureSpec = DEFAULT_SPEC) -> ColumnTransformer:
+    """
+    Build a reproducible preprocessing transformer:
+    - Numeric: median impute + standard scale
+    - Categorical: most_frequent impute + one-hot encode (ignore unknowns)
+    """
+    numeric_pipe = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler()),
+    ])
+
+    categorical_pipe = Pipeline(steps=[
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore")),
+    ])
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", numeric_pipe, spec.numeric),
+            ("cat", categorical_pipe, spec.categorical),
+        ],
+        remainder="drop",
     )
-
-    # RETURN **3 VALUES**
-    return (X_train, X_test, y_train, y_test), scaler, cols
+    return preprocessor
 
 
-if __name__ == "__main__":
-    from src.data_loader import load_data
-
-    df = load_data()
-    (_, _, _, _), scaler, cols = preprocess(df)
-
-    print("Features:", len(cols))
-    print(cols)
+def build_model_pipeline(model, spec: FeatureSpec = DEFAULT_SPEC) -> Pipeline:
+    """
+    Full pipeline = preprocess + model.
+    This is what you persist for inference (Task 4).
+    """
+    return Pipeline(steps=[
+        ("preprocess", build_preprocessor(spec)),
+        ("model", model),
+    ])

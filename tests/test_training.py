@@ -1,19 +1,22 @@
-from src.data_loader import load_data
-from src.preprocess import preprocess
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 
-def test_model_training_runs():
+from src.data_loader import load_data
+from src.preprocess import prepare_xy, build_model_pipeline, DEFAULT_SPEC
+
+
+def test_model_pipeline_training_runs():
     df = load_data()
-    # UPDATED — unpack 3 returns from preprocess
-    (X_train, X_test, y_train, y_test), scaler, cols = preprocess(df)
+    X, y = prepare_xy(df, DEFAULT_SPEC)
 
-    model = LogisticRegression(max_iter=200)
-    model.fit(X_train, y_train)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-    preds = model.predict(X_test)
+    pipe = build_model_pipeline(LogisticRegression(max_iter=500), DEFAULT_SPEC)
+    pipe.fit(X_train, y_train)
 
-    # Model must produce predictions equal to test-set length
+    preds = pipe.predict(X_test)
+
     assert len(preds) == len(y_test)
-
-    # Basic sanity check — score should give a valid float value
-    assert model.score(X_test, y_test) >= 0
