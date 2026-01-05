@@ -28,6 +28,7 @@ jobs:
 
       - name: Run tests
         run: |
+          python scripts/download_data.py --out data/heart.csv
           pytest -q
 
       - name: Train model (creates joblib + json)
