@@ -8,8 +8,8 @@ import joblib
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
 from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel
 
 from src.preprocess import DEFAULT_SPEC
 
@@ -63,7 +63,10 @@ def health():
 
 @app.get("/")
 def root():
-    return {"message": "Heart Disease Prediction API", "model_loaded": _pipeline is not None}
+    return {
+        "message": "Heart Disease Prediction API",
+        "model_loaded": _pipeline is not None,
+    }
 
 
 @app.post("/predict")

@@ -1,9 +1,9 @@
-import os, sys
-import pandas as pd
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+from src.preprocess import DEFAULT_SPEC, build_preprocessor, prepare_xy
 from src.data_loader import load_data
-from src.preprocess import prepare_xy, build_preprocessor, DEFAULT_SPEC
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def test_prepare_xy_shapes_and_target():
@@ -24,6 +24,7 @@ def test_preprocessor_removes_missing_after_fit_transform():
 
     # Xt is numpy or sparse; ensure no NaNs
     import numpy as np
+
     if hasattr(Xt, "toarray"):
         Xt = Xt.toarray()
     assert np.isnan(Xt).sum() == 0

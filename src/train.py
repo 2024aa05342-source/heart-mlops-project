@@ -6,25 +6,24 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import joblib
+import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
 import numpy as np
-import matplotlib.pyplot as plt
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.metrics import (
+    RocCurveDisplay,
     accuracy_score,
+    confusion_matrix,
     f1_score,
     precision_score,
     recall_score,
     roc_auc_score,
-    confusion_matrix,
-    RocCurveDisplay,
 )
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 
-from src.preprocess import load_dataset, prepare_xy, DEFAULT_SPEC, build_model_pipeline
+from src.preprocess import DEFAULT_SPEC, build_model_pipeline, load_dataset, prepare_xy
 
 
 def _evaluate(pipe, X, y) -> Dict[str, float]:
@@ -114,7 +113,9 @@ def _run_gridsearch(
         cv_summary = {
             "best_params": best_params,
             "best_cv_f1": best_cv_f1,
-            "mean_test_score": [float(x) for x in search.cv_results_["mean_test_score"]],
+            "mean_test_score": [
+                float(x) for x in search.cv_results_["mean_test_score"]
+            ],
             "std_test_score": [float(x) for x in search.cv_results_["std_test_score"]],
             "params": [dict(p) for p in search.cv_results_["params"]],
         }
@@ -156,7 +157,9 @@ def main():
         "model__C": [0.01, 0.1, 1, 10, 100],
         "model__solver": ["liblinear", "lbfgs"],
     }
-    best_lr, lr_meta = _run_gridsearch(lr, lr_grid, X_train, y_train, "LR_CV_TUNE", experiment_name)
+    best_lr, lr_meta = _run_gridsearch(
+        lr, lr_grid, X_train, y_train, "LR_CV_TUNE", experiment_name
+    )
 
     # --- Random Forest ---
     rf = RandomForestClassifier(random_state=42)
@@ -166,10 +169,16 @@ def main():
         "model__min_samples_split": [2, 5, 10],
         "model__min_samples_leaf": [1, 2, 4],
     }
-    best_rf, rf_meta = _run_gridsearch(rf, rf_grid, X_train, y_train, "RF_CV_TUNE", experiment_name)
+    best_rf, rf_meta = _run_gridsearch(
+        rf, rf_grid, X_train, y_train, "RF_CV_TUNE", experiment_name
+    )
 
     # Choose model by CV f1 (Task 2)
-    chosen_name = "logistic_regression" if lr_meta["best_cv_f1"] >= rf_meta["best_cv_f1"] else "random_forest"
+    chosen_name = (
+        "logistic_regression"
+        if lr_meta["best_cv_f1"] >= rf_meta["best_cv_f1"]
+        else "random_forest"
+    )
     chosen = best_lr if chosen_name == "logistic_regression" else best_rf
     chosen_meta = lr_meta if chosen_name == "logistic_regression" else rf_meta
 
@@ -187,7 +196,11 @@ def main():
         "tracking_uri": tracking_uri,
         "experiment": experiment_name,
         "data_path": data_path,
-        "feature_spec": DEFAULT_SPEC.model_dump() if hasattr(DEFAULT_SPEC, "model_dump") else str(DEFAULT_SPEC),
+        "feature_spec": (
+            DEFAULT_SPEC.model_dump()
+            if hasattr(DEFAULT_SPEC, "model_dump")
+            else str(DEFAULT_SPEC)
+        ),
     }
     meta_path = model_dir / "model_meta.json"
     meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
@@ -196,7 +209,9 @@ def main():
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(run_name="FINAL_SELECTED_MODEL"):
         mlflow.log_param("chosen_model", chosen_name)
-        mlflow.log_params({f"chosen_{k}": v for k, v in chosen_meta.get("best_params", {}).items()})
+        mlflow.log_params(
+            {f"chosen_{k}": v for k, v in chosen_meta.get("best_params", {}).items()}
+        )
         mlflow.log_metrics({f"test_{k}": v for k, v in test_metrics.items()})
 
         # Save plots (confusion matrix + ROC) and log them
@@ -205,8 +220,12 @@ def main():
         roc_path = fig_dir / "final_roc_curve.png"
 
         y_pred = chosen.predict(X_test)
-        _save_confusion_matrix_png(y_test, y_pred, cm_path, title=f"Confusion Matrix ({chosen_name})")
-        _save_roc_curve_png(chosen, X_test, y_test, roc_path, title=f"ROC Curve ({chosen_name})")
+        _save_confusion_matrix_png(
+            y_test, y_pred, cm_path, title=f"Confusion Matrix ({chosen_name})"
+        )
+        _save_roc_curve_png(
+            chosen, X_test, y_test, roc_path, title=f"ROC Curve ({chosen_name})"
+        )
 
         if cm_path.exists():
             mlflow.log_artifact(str(cm_path), artifact_path="plots")
