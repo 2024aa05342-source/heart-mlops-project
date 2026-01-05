@@ -1,67 +1,36 @@
-## Heart Disease Prediction - MLOps Pipeline
+## Clean local demo (Task 7 local substitute)
 
-This project builds a Machine Learning workflow for **Heart Disease Prediction** using an automated **MLOps CI pipeline, model training, testing, API deployment & Streamlit UI dashboard**.
+Because cloud CD isn’t possible for this submission, the deployment is demonstrated **locally** using Docker Compose with a one-shot init service.
 
----
+### Run everything
+```bash
+docker compose up --build
+```
 
-## 🚀 Project Features
+What happens automatically:
+1. **trainer** service:
+   - downloads the dataset to `data/heart.csv`
+   - runs CV + hyperparameter tuning
+   - saves a single reproducible pipeline to `models/model_pipeline.joblib` (Task 4)
+   - saves metadata to `models/model_meta.json`
+2. **api** service starts only after trainer finishes successfully.
+3. **streamlit**, **prometheus**, **grafana** start after api.
 
-| Component | Status |
-|----------|--------|
-| Data Preprocessing | ✔ One-Hot Encoding + Scaling + Missing handling |
-| Model Training | ✔ Logistic Regression & RandomForest |
-| Model Serialization | ✔ Saved in `/models` folder |
-| Web API | ✔ FastAPI Endpoint `/predict` |
-| UI Dashboard | ✔ Streamlit app for prediction & visualization |
-| Docker Deployment | ✔ Ready (image can run API + UI together) |
-| CI/CD | ✔ GitHub Actions: test + train + upload model artifact |
+### URLs
+- API docs: `http://localhost:8000/docs`
+- Streamlit UI: `http://localhost:8501`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (default login admin/admin unless you changed it)
 
----
+### Re-run training only
+```bash
+docker compose run --rm trainer
+```
 
-## 📂 Project Structure
+### Clean reset
+```bash
+docker compose down -v
+rm -rf models data mlruns
+```
 
-📁 heart-mlops-project
-│── models/                  # trained model artifacts
-│── notebooks/               # EDA & analysis
-│── src/
-│   ├── data_loader.py       # reads dataset
-│   ├── preprocess.py        # encoding + scaling + split
-│   ├── train.py             # trains + saves models + metrics
-│   ├── api.py               # FastAPI backend for prediction
-│── tests/
-│   ├── test_preprocess.py   # preprocessing tests
-│   ├── test_training.py     # training test
-│── app.py                   # Streamlit UI
-│── requirements.txt
-│── Dockerfile
-│── run_local.sh
-│── README.md
-
-##Local Setup & Run
-python3 -m venv venv
-source venv/bin/activate   # Mac/Linux
-venv\Scripts\activate      # Windows
-
-## Install dependencies
-pip install -r requirements.txt
-
-## Download dataset
-python scripts/download_data.py --out data/heart.csv
-
-## Train model
-python src/train.py
-
-## Start FastAPI Backend
-uvicorn src.api:app --reload --port 8000
-
-## Run StreamLit UI
-streamlit run app.py
-
-## Run Tests
-pytest -q
-
-## Docker Deployment
-docker build -t heart-app .
-docker run -p 8000:8000 -p 8501:8501 heart-app
-
-
+mlflow ui --backend-store-uri ./mlruns

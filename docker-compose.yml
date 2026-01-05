@@ -1,21 +1,48 @@
 version: "3.8"
 
 services:
+  # One-shot init service: downloads data + trains model into shared volumes
+  trainer:
+    build: .
+    container_name: heart_trainer
+    command: ["sh", "-c", "python scripts/download_data.py --out data/heart.csv && python -m src.train"]
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./mlruns:/app/mlruns
+    environment:
+      - DATA_PATH=data/heart.csv
+      - MODEL_DIR=models
+      - MLFLOW_EXPERIMENT=heart-disease-exp
+    restart: "no"
+
   api:
     build: .
     container_name: heart_api
+    depends_on:
+      trainer:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
+    volumes:
+      - ./models:/app/models:ro
+      - ./mlruns:/app/mlruns
+    environment:
+      - MODEL_DIR=models
     restart: unless-stopped
 
   streamlit:
     build: .
     container_name: heart_streamlit
+    depends_on:
+      - api
     command: ["streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
     ports:
       - "8501:8501"
-    depends_on:
-      - api
+    volumes:
+      - ./models:/app/models:ro
+    environment:
+      - MODEL_DIR=models
     restart: unless-stopped
 
   prometheus:

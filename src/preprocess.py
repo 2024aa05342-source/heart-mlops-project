@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -10,59 +10,81 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
-TARGET_COL = "num"
-
-# UCI Heart Disease commonly uses these columns (your data_loader reads heart.csv)
-# If your CSV has extra columns, they are dropped in `prepare_xy`.
-NUMERIC_FEATURES: List[str] = [
-    "age", "trestbps", "chol", "thalach", "oldpeak"
-]
-
-CATEGORICAL_FEATURES: List[str] = [
-    "sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"
-]
-
-
 @dataclass(frozen=True)
 class FeatureSpec:
-    numeric: List[str]
-    categorical: List[str]
+    numeric_features: List[str]
+    categorical_features: List[str]
+    target_candidates: List[str]
 
     @property
     def all_features(self) -> List[str]:
-        return self.numeric + self.categorical
+        # Preserve a stable input schema for the API (Task 4)
+        return list(self.numeric_features) + list(self.categorical_features)
 
 
-DEFAULT_SPEC = FeatureSpec(numeric=NUMERIC_FEATURES, categorical=CATEGORICAL_FEATURES)
+# Heart dataset (common Kaggle/UCI CSV form)
+DEFAULT_SPEC = FeatureSpec(
+    numeric_features=["age", "trestbps", "chol", "thalach", "oldpeak"],
+    categorical_features=["sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal"],
+    # Some heart datasets use 'target', some use 'num'
+    target_candidates=["target", "num"],
+)
+
+
+def detect_target_column(df: pd.DataFrame, spec: FeatureSpec = DEFAULT_SPEC) -> str:
+    for col in spec.target_candidates:
+        if col in df.columns:
+            return col
+    raise ValueError(
+        f"Could not detect target column. Expected one of {spec.target_candidates}. Found: {list(df.columns)}"
+    )
 
 
 def prepare_xy(df: pd.DataFrame, spec: FeatureSpec = DEFAULT_SPEC) -> Tuple[pd.DataFrame, pd.Series]:
+    """Return (X, y) with a stable feature order and binary target.
+
+    - Drops extra columns not in spec + target
+    - Ensures X columns match spec.all_features order
+    - Supports target column named 'target' (0/1) or 'num' (0-4 -> binarized)
     """
-    Prepare X (raw feature dataframe) and y (binary target).
-    - Drops non-useful columns if present.
-    - Converts target `num` into binary: 1 if num > 0 else 0.
-    """
-    df = df.copy()
-    df = df.drop(columns=["id", "dataset"], errors="ignore")
+    target_col = detect_target_column(df, spec)
 
-    if TARGET_COL not in df.columns:
-        raise ValueError(f"Expected target column '{TARGET_COL}' in dataframe. Found: {list(df.columns)}")
+    needed = set(spec.all_features + [target_col])
+    missing_features = [c for c in spec.all_features if c not in df.columns]
+    if missing_features:
+        raise ValueError(f"Missing expected feature columns: {missing_features}. Found: {list(df.columns)}")
 
-    # Ensure all expected feature columns exist
-    missing = [c for c in spec.all_features if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing expected feature columns: {missing}. Found: {list(df.columns)}")
+    df2 = df[[*spec.all_features, target_col]].copy()
 
-    y = (df[TARGET_COL] > 0).astype(int)
-    X = df[spec.all_features].copy()
+    y = df2[target_col]
+    # Normalize target to binary 0/1
+    try:
+        y_int = y.astype(int)
+        if target_col == "num":
+            y = (y_int > 0).astype(int)
+        else:
+            # target usually already 0/1; but keep safe
+            y = (y_int > 0).astype(int)
+    except Exception:
+        raise ValueError(f"Target column '{target_col}' must be numeric/binary. Got dtype={y.dtype}")
+
+    X = df2.drop(columns=[target_col])
+    # Ensure stable order
+    X = X[spec.all_features]
     return X, y
+
+def load_dataset(path: str):
+    """
+    Load dataset from CSV.
+    Kept minimal for reproducibility and MLOps clarity.
+    """
+    return pd.read_csv(path)
 
 
 def build_preprocessor(spec: FeatureSpec = DEFAULT_SPEC) -> ColumnTransformer:
-    """
-    Build a reproducible preprocessing transformer:
+    """Preprocessing for Task 4 (reproducible inference):
     - Numeric: median impute + standard scale
-    - Categorical: most_frequent impute + one-hot encode (ignore unknowns)
+    - Categorical: most_frequent impute + one-hot (ignore unknown)
     """
     numeric_pipe = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median")),
@@ -74,21 +96,17 @@ def build_preprocessor(spec: FeatureSpec = DEFAULT_SPEC) -> ColumnTransformer:
         ("onehot", OneHotEncoder(handle_unknown="ignore")),
     ])
 
-    preprocessor = ColumnTransformer(
+    return ColumnTransformer(
         transformers=[
-            ("num", numeric_pipe, spec.numeric),
-            ("cat", categorical_pipe, spec.categorical),
+            ("num", numeric_pipe, spec.numeric_features),
+            ("cat", categorical_pipe, spec.categorical_features),
         ],
         remainder="drop",
     )
-    return preprocessor
 
 
 def build_model_pipeline(model, spec: FeatureSpec = DEFAULT_SPEC) -> Pipeline:
-    """
-    Full pipeline = preprocess + model.
-    This is what you persist for inference (Task 4).
-    """
+    """Full pipeline = preprocess + model (persist this single artifact)."""
     return Pipeline(steps=[
         ("preprocess", build_preprocessor(spec)),
         ("model", model),

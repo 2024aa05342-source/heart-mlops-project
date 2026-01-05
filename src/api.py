@@ -1,102 +1,91 @@
 import json
 import logging
-import time
+import os
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import joblib
 import pandas as pd
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from src.preprocess import DEFAULT_SPEC
 
-# -------------------- Logging Setup --------------------
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("heart-api")
-
-MODELS_DIR = Path("models")
-PIPELINE_PATH = MODELS_DIR / "model_pipeline.joblib"
-META_PATH = MODELS_DIR / "model_meta.json"
+logger = logging.getLogger("heart_api")
 
 app = FastAPI(title="Heart Disease Prediction API")
 
+Instrumentator().instrument(app).expose(app)
 
-# -------------------- Middleware --------------------
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    duration_ms = (time.time() - start) * 1000
-    logger.info("%s %s -> %s (%.2f ms)", request.method, request.url.path, response.status_code, duration_ms)
-    return response
+MODEL_DIR = Path(os.getenv("MODEL_DIR", "models"))
+PIPELINE_PATH = MODEL_DIR / "model_pipeline.joblib"
+META_PATH = MODEL_DIR / "model_meta.json"
+
+_pipeline = None
+_meta: Optional[dict[str, Any]] = None
 
 
-# -------------------- Load model pipeline & metadata --------------------
-pipeline = None
-INPUT_FEATURES: Optional[List[str]] = None
+class PredictRequest(BaseModel):
+    # Accept arbitrary key/value; we will align to DEFAULT_SPEC.all_features
+    payload: dict[str, Any]
 
-def _load_assets():
-    global pipeline, INPUT_FEATURES
+
+def _load_assets() -> None:
+    global _pipeline, _meta
+
     if not PIPELINE_PATH.exists():
-        raise RuntimeError(f"Missing model pipeline at {PIPELINE_PATH}. Train first: python -m src.train")
+        raise RuntimeError(
+            f"Missing model pipeline at {PIPELINE_PATH}. "
+            f"Run training first (trainer/init step): python -m src.train"
+        )
 
-    pipeline = joblib.load(PIPELINE_PATH)
+    _pipeline = joblib.load(PIPELINE_PATH)
 
     if META_PATH.exists():
-        meta = json.loads(META_PATH.read_text(encoding="utf-8"))
-        INPUT_FEATURES = meta.get("input_features")
+        _meta = json.loads(META_PATH.read_text(encoding="utf-8"))
     else:
-        INPUT_FEATURES = None
+        _meta = {"input_features": DEFAULT_SPEC.all_features}
 
-_load_assets()
 
-Instrumentator().instrument(app).expose(app)
+@app.on_event("startup")
+def startup_event():
+    # Load once when app starts (cleaner than import-time)
+    _load_assets()
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.get("/")
-def home():
-    return {"message": "Heart Disease Prediction API is running"}
-
-
-class InputData(BaseModel):
-    # Keep your existing contract: ordered list of feature values
-    features: List[Any]
-
-
-def _validate_features(values: List[Any]) -> List[Any]:
-    if INPUT_FEATURES is None:
-        return values
-    if len(values) != len(INPUT_FEATURES):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Expected {len(INPUT_FEATURES)} features in order {INPUT_FEATURES}, got {len(values)}",
-        )
-    return values
+def root():
+    return {"message": "Heart Disease Prediction API", "model_loaded": _pipeline is not None}
 
 
 @app.post("/predict")
-def predict(data: InputData):
-    if pipeline is None:
-        raise HTTPException(status_code=500, detail="Model pipeline not loaded")
-
-    values = _validate_features(data.features)
-
-    # Convert list -> single-row DataFrame with correct column names
-    if INPUT_FEATURES is None:
-        # Fallback: accept list without schema (best effort)
-        raise HTTPException(status_code=500, detail="Model metadata missing: input feature schema unknown")
-    df = pd.DataFrame([values], columns=INPUT_FEATURES)
+def predict(req: PredictRequest, request: Request):
+    if _pipeline is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
 
     try:
-        pred = int(pipeline.predict(df)[0])
+        # Align inputs to stable feature order
+        features = (_meta or {}).get("input_features", DEFAULT_SPEC.all_features)
+        row = {k: req.payload.get(k, None) for k in features}
+        df = pd.DataFrame([row], columns=features)
+
+        pred = int(_pipeline.predict(df)[0])
+
         proba = None
-        if hasattr(pipeline, "predict_proba"):
+        if hasattr(_pipeline, "predict_proba"):
             try:
-                proba = float(pipeline.predict_proba(df)[0, 1])
+                proba = float(_pipeline.predict_proba(df)[0, 1])
             except Exception:
                 proba = None
+
         return {"prediction": pred, "probability": proba}
     except Exception as e:
         logger.exception("Prediction failed")
