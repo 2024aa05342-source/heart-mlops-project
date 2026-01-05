@@ -7,3 +7,5 @@ mlruns/
 notebooks/
 .env
 *.log
+mlruns/
+mlflow.db
