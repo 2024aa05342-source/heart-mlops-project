@@ -1,25 +1,30 @@
-import pandas as pd
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+from src.preprocess import DEFAULT_SPEC, build_preprocessor, prepare_xy
 from src.data_loader import load_data
-from src.preprocess import preprocess
+import os
+import sys
 
-def test_preprocess_output_shapes():
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
+def test_prepare_xy_shapes_and_target():
     df = load_data()
-    (X_train, X_test, y_train, y_test), scaler, cols = preprocess(df)
+    X, y = prepare_xy(df, DEFAULT_SPEC)
 
-    # Ensure shapes look valid
-    assert len(X_train) > 0
-    assert len(X_test) > 0
-    assert len(y_train) > 0
-    assert len(y_test) > 0
-    assert len(cols) == X_train.shape[1]  # feature-count consistency
+    assert len(X) == len(y)
+    assert set(y.unique()).issubset({0, 1})
+    assert list(X.columns) == DEFAULT_SPEC.all_features
 
-def test_no_missing_values_after_preprocess():
+
+def test_preprocessor_removes_missing_after_fit_transform():
     df = load_data()
-    (X_train, X_test, y_train, y_test), scaler, cols = preprocess(df)
+    X, y = prepare_xy(df, DEFAULT_SPEC)
 
-    # Ensure no missing values remain
-    assert pd.DataFrame(X_train).isna().sum().sum() == 0
-    assert pd.DataFrame(X_test).isna().sum().sum() == 0
+    pre = build_preprocessor(DEFAULT_SPEC)
+    Xt = pre.fit_transform(X, y)
+
+    # Xt is numpy or sparse; ensure no NaNs
+    import numpy as np
+
+    if hasattr(Xt, "toarray"):
+        Xt = Xt.toarray()
+    assert np.isnan(Xt).sum() == 0

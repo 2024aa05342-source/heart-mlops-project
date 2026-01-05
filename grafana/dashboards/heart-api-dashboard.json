@@ -1,0 +1,52 @@
+{
+  "title": "Heart Disease API Monitoring",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests Per Second",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[1m])",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "type": "table",
+      "title": "Total Requests by Endpoint",
+      "targets": [
+        {
+          "expr": "sum(http_requests_total) by (method, path)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Latency (95th percentile)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[1m])) by (le))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 }
+    },
+    {
+      "type": "table",
+      "title": "HTTP Status Codes",
+      "targets": [
+        {
+          "expr": "sum(http_requests_total) by (status)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 }
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5s"
+}

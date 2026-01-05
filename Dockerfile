@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -10,5 +10,5 @@ COPY . .
 EXPOSE 8000
 EXPOSE 8501
 
-CMD ["bash", "-c", "uvicorn src.api:app --host 0.0.0.0 --port 8000 & streamlit run app.py --server.port 8501 --server.address 0.0.0.0"]
-
+# API container just runs the API. Training happens in a separate init/trainer step (clean demo).
+CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
