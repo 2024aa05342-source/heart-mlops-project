@@ -3,22 +3,21 @@ kind: Ingress
 metadata:
   name: heart-ingress
   annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
+  ingressClassName: nginx
   rules:
     - http:
         paths:
-          # API exposed at /api
           - path: /api(/|$)(.*)
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: heart-api-svc
                 port:
                   number: 80
-
-          # Streamlit at /
-          - path: /()(.*)
+          - path: /
             pathType: Prefix
             backend:
               service:
