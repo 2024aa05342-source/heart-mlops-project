@@ -19,8 +19,8 @@ spec:
           emptyDir: {}
       initContainers:
         - name: init-download-and-train
-          image: YOUR_DOCKER_IMAGE:latest
-          imagePullPolicy: Always
+          image: heart-mlops:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: DATA_PATH
               value: /data/heart.csv
@@ -41,8 +41,8 @@ spec:
               ls -lh /models
       containers:
         - name: api
-          image: YOUR_DOCKER_IMAGE:latest
-          imagePullPolicy: Always
+          image: heart-mlops:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: MODEL_DIR
               value: /models

@@ -1,0 +1,145 @@
+name: CD – Kubernetes Deployment (disabled)
+
+# -------------------------------------------------------------------
+# IMPORTANT:
+# GitHub Actions does NOT allow an empty `on:` block.
+# `workflow_dispatch` keeps this workflow VALID but NON-AUTOMATIC.
+# It will NEVER run unless manually enabled.
+# -------------------------------------------------------------------
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    name: Build, Push & Deploy (K8s)
+    runs-on: ubuntu-latest
+
+    # -------------------------------------------------------------------
+    # HARD DISABLE CD EXECUTION
+    # Change this to:
+    # if: github.event_name == 'workflow_dispatch'
+    # when you actually want to run CD
+    # -------------------------------------------------------------------
+    if: false
+
+    # -------------------------------------------------------------------
+    # ENVIRONMENT VARIABLES (EDIT FOR CLOUD / CLUSTER)
+    # -------------------------------------------------------------------
+    env:
+      # 🔹 Deployment environment (dev / demo / prod)
+      DEPLOY_ENV: demo
+
+      # 🔹 Container registry (examples below)
+      # DockerHub  : docker.io/<username>
+      # GHCR       : ghcr.io/<org-or-user>
+      # AWS ECR    : <aws_account_id>.dkr.ecr.<region>.amazonaws.com
+      CONTAINER_REGISTRY: ghcr.io
+
+      # 🔹 Image repository name
+      IMAGE_NAME: ${{ github.repository }}
+
+      # 🔹 Kubernetes namespace
+      K8S_NAMESPACE: default
+
+      # 🔹 Kubernetes deployment name (from api-deployment.yaml)
+      K8S_DEPLOYMENT_NAME: heart-api
+
+    steps:
+      # -------------------------------------------------------------------
+      # SOURCE CODE
+      # -------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------
+      # IMAGE TAGGING STRATEGY
+      # -------------------------------------------------------------------
+      - name: Set image tag
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      # -------------------------------------------------------------------
+      # FINAL IMAGE NAME
+      # -------------------------------------------------------------------
+      - name: Compose full image name
+        run: |
+          IMAGE="${CONTAINER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
+          echo "Docker Image: ${IMAGE}"
+
+      # -------------------------------------------------------------------
+      # CONTAINER REGISTRY LOGIN
+      # (Uses GitHub Container Registry here)
+      # -------------------------------------------------------------------
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # -------------------------------------------------------------------
+      # DOCKER BUILD & PUSH
+      # -------------------------------------------------------------------
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      # -------------------------------------------------------------------
+      # KUBERNETES AUTHENTICATION
+      #
+      # CLOUD OPTIONS:
+      # • Local / Minikube / Kind:
+      #     kubectl config view --raw > kubeconfig
+      #     base64 kubeconfig → GitHub secret KUBECONFIG_B64
+      #
+      # • AWS EKS:
+      #     use aws eks update-kubeconfig
+      #
+      # • GCP GKE:
+      #     use google-github-actions/get-gke-credentials
+      #
+      # • Azure AKS:
+      #     use azure/aks-set-context
+      # -------------------------------------------------------------------
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl config get-contexts
+
+      # -------------------------------------------------------------------
+      # UPDATE IMAGE IN MANIFESTS (NO GIT COMMIT)
+      # -------------------------------------------------------------------
+      - name: Inject image into Kubernetes manifests
+        run: |
+          sed -i "s|image:.*|image: ${IMAGE}|g" k8s/api-deployment.yaml
+
+      # -------------------------------------------------------------------
+      # APPLY KUBERNETES MANIFESTS
+      # -------------------------------------------------------------------
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -n ${K8S_NAMESPACE} -f k8s/api-deployment.yaml
+          kubectl apply -n ${K8S_NAMESPACE} -f k8s/ingress.yaml
+
+      # -------------------------------------------------------------------
+      # VERIFY DEPLOYMENT
+      # -------------------------------------------------------------------
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/${K8S_DEPLOYMENT_NAME} \
+            -n ${K8S_NAMESPACE} \
+            --timeout=180s
+
+          kubectl get pods -n ${K8S_NAMESPACE}
+          kubectl get svc -n ${K8S_NAMESPACE}
+          kubectl get ingress -n ${K8S_NAMESPACE} || true
