@@ -33,4 +33,15 @@ docker compose down -v
 rm -rf models data mlruns
 ```
 
+### Monitoring grafana
+```bash
+Containers should be running 
+Prometheus: http://localhost:9090
+Grafana: https://localhst:3000
+```
+
+### MLFlow Experiment Traking
+```bash
 mlflow ui --backend-store-uri ./mlruns
+```
+
