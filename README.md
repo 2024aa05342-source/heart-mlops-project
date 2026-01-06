@@ -7,6 +7,7 @@ Because cloud CD isn’t possible for this submission, the deployment is demonst
 docker compose up --build
 ```
 
+
 What happens automatically:
 1. **trainer** service:
    - downloads the dataset to `data/heart.csv`
