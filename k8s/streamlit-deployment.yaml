@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
         - name: streamlit
-          image: YOUR_DOCKER_IMAGE:latest
-          imagePullPolicy: Always
+          image: heart-mlops:latest
+          imagePullPolicy: IfNotPresent
           command: ["streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
           ports:
             - containerPort: 8501
